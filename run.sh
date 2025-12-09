@@ -97,28 +97,42 @@ find "$TEMP_EXTRACT" -type f \( -iname "*.3ds" -o -iname "*.cia" \) -print0 | wh
     # 2. Run the tool on the local file
     ./cia-unix "$GAME_FILENAME"
 
-    # 3. Handle Renaming (A-decrypted.3ds -> A.cci)
-    # The tool creates a file named [Name]-decrypted.3ds
-    EXPECTED_OUTPUT="${GAME_BASENAME}-decrypted.3ds"
+    # 3. Handle Renaming and Output Detection
     
-    if [ -f "$EXPECTED_OUTPUT" ]; then
-        echo "Detected decrypted output: $EXPECTED_OUTPUT"
+    EXPECTED_3DS="${GAME_BASENAME}-decrypted.3ds"
+    EXPECTED_CIA="${GAME_BASENAME}-decrypted.cia"
+
+    # Case A: Tool produced a decrypted .3ds file -> Rename to .cci
+    if [ -f "$EXPECTED_3DS" ]; then
+        echo "Detected decrypted 3DS: $EXPECTED_3DS"
         echo "Renaming to .cci..."
-        mv "$EXPECTED_OUTPUT" "${GAME_BASENAME}.cci"
+        mv "$EXPECTED_3DS" "${GAME_BASENAME}.cci"
     fi
 
-    # 4. Move the results back to the user's Source Directory
+    # Case B: Tool produced a decrypted .cia file -> Keep logic (do not rename to .cci, but ensure it moves)
+    if [ -f "$EXPECTED_CIA" ]; then
+        echo "Detected decrypted CIA: $EXPECTED_CIA"
+        mv "$EXPECTED_CIA" "$SOURCE_DIR/"
+    fi
+
+    # 4. Move all Results back to Source Directory
     
-    # Move any .cci files (This catches the renamed file from step 3)
+    # Move .cci files (covers Case A)
     if ls *.cci 1> /dev/null 2>&1; then
         mv *.cci "$SOURCE_DIR/"
     fi
 
-    # Fallback: If the tool outputted a standard .3ds that wasn't renamed (or from a CIA convert)
-    # We ignore the original input file if it's still there
+    # Catch-all: Move any generated .3ds files that aren't the input file
     ls *.3ds 2>/dev/null | while read -r generated_3ds; do
         if [ "$generated_3ds" != "$GAME_FILENAME" ]; then
             mv "$generated_3ds" "$SOURCE_DIR/"
+        fi
+    done
+
+    # Catch-all: Move any generated .cia files that aren't the input file (Covers tricky renames)
+    ls *.cia 2>/dev/null | while read -r generated_cia; do
+        if [ "$generated_cia" != "$GAME_FILENAME" ]; then
+            mv "$generated_cia" "$SOURCE_DIR/"
         fi
     done
 
