@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Decrypt 3DS
+Comment=Decrypts CIA/3DS/ZIP/7Z/RAR
+# Changes:
+# 1. Uses single quotes around the whole bash command to prevent confusion.
+# 2. Adds "read line" at the end so the window stays open until you hit Enter.
+Exec=bash -c 'cd "$(dirname "%k")"; chmod +x run.sh; ./run.sh; echo "Process finished. Press Enter to close..."; read line'
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Utility;
