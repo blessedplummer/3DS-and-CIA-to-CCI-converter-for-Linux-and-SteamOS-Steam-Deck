@@ -1,4 +1,4 @@
-Because Azahar doesn't read .3ds and .cia files and the other scripts require too much keyboard use for a steam deck with touchpads.
+Because Azahar doesn't read .3ds and .cia files and the other scripts require too much keyboard use for a steam deck with touchpads. (the steam keyboard does not jive well with the terminal)
 
 Download this repo as a zip file, extract it, then double click "3DS Decrypt.desktop"
 
