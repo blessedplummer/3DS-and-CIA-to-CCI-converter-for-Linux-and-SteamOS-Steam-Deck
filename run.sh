@@ -61,26 +61,14 @@ echo "------------------------------------------------"
 echo "Processing: $FILENAME"
 echo "------------------------------------------------"
 
-if [[ "$EXTENSION_LOWER" == "zip" ]]; then
-    echo "Extracting ZIP..."
-    unzip -o "$FILE_PATH" -d "$TEMP_EXTRACT"
-elif [[ "$EXTENSION_LOWER" == "7z" ]]; then
+# Check if it is an archive format supported by 7z
+if [[ "$EXTENSION_LOWER" == "zip" || "$EXTENSION_LOWER" == "7z" || "$EXTENSION_LOWER" == "rar" ]]; then
     if command -v 7z &> /dev/null; then
-        echo "Extracting 7Z..."
+        echo "Extracting Archive using 7z..."
+        # 'x' extracts with full paths, '-o' specifies output dir, '-y' assumes yes on prompts
         7z x "$FILE_PATH" -o"$TEMP_EXTRACT" -y
     else
-        zenity --error --text="Error: '7z' tool not found."
-        exit 1
-    fi
-elif [[ "$EXTENSION_LOWER" == "rar" ]]; then
-    if command -v unrar &> /dev/null; then
-        echo "Extracting RAR..."
-        unrar x "$FILE_PATH" "$TEMP_EXTRACT/"
-    elif command -v 7z &> /dev/null; then
-        echo "Extracting RAR (via 7z)..."
-        7z x "$FILE_PATH" -o"$TEMP_EXTRACT" -y
-    else
-        zenity --error --text="Error: 'unrar' or '7z' not found."
+        zenity --error --text="Error: '7z' command not found.\nPlease install p7zip-full (sudo apt install p7zip-full)."
         exit 1
     fi
 else
@@ -96,6 +84,7 @@ chmod +x ./cia-unix
 find "$TEMP_EXTRACT" -type f \( -iname "*.3ds" -o -iname "*.cia" \) -print0 | while IFS= read -r -d '' FOUND_FILE; do
 
     GAME_FILENAME=$(basename "$FOUND_FILE")
+    GAME_BASENAME="${GAME_FILENAME%.*}" # Filename without extension
 
     echo "------------------------------------------------"
     echo "Decrypting: $GAME_FILENAME"
@@ -108,27 +97,32 @@ find "$TEMP_EXTRACT" -type f \( -iname "*.3ds" -o -iname "*.cia" \) -print0 | wh
     # 2. Run the tool on the local file
     ./cia-unix "$GAME_FILENAME"
 
-    # 3. Move the results back to the user's Source Directory
-    # Move decrypted .cci files
+    # 3. Handle Renaming (A-decrypted.3ds -> A.cci)
+    # The tool creates a file named [Name]-decrypted.3ds
+    EXPECTED_OUTPUT="${GAME_BASENAME}-decrypted.3ds"
+    
+    if [ -f "$EXPECTED_OUTPUT" ]; then
+        echo "Detected decrypted output: $EXPECTED_OUTPUT"
+        echo "Renaming to .cci..."
+        mv "$EXPECTED_OUTPUT" "${GAME_BASENAME}.cci"
+    fi
+
+    # 4. Move the results back to the user's Source Directory
+    
+    # Move any .cci files (This catches the renamed file from step 3)
     if ls *.cci 1> /dev/null 2>&1; then
         mv *.cci "$SOURCE_DIR/"
     fi
 
-    # If we converted a CIA, it creates a decrypted 3DS file, move that too
-    # We use -n so we don't overwrite existing files if they happen to share names
-    if ls *.3ds 1> /dev/null 2>&1; then
-        # Check if this 3ds file is the one we just worked on
-        if [ -f "$GAME_FILENAME" ] && [[ "$GAME_FILENAME" == *.3ds ]]; then
-             # If the input was 3ds, move it back (it might be modified or just the original)
-             mv "$GAME_FILENAME" "$SOURCE_DIR/"
-        else
-             # If input was CIA, this is a new 3ds file
-             mv *.3ds "$SOURCE_DIR/" 2>/dev/null
+    # Fallback: If the tool outputted a standard .3ds that wasn't renamed (or from a CIA convert)
+    # We ignore the original input file if it's still there
+    ls *.3ds 2>/dev/null | while read -r generated_3ds; do
+        if [ "$generated_3ds" != "$GAME_FILENAME" ]; then
+            mv "$generated_3ds" "$SOURCE_DIR/"
         fi
-    fi
+    done
 
-    # 4. Cleanup: Remove the input file from workspace if it still exists
-    # (In case cia-unix didn't delete it or it was a copy)
+    # 5. Cleanup: Remove the input file from workspace
     if [ -f "$GAME_FILENAME" ]; then
         rm "$GAME_FILENAME"
     fi
@@ -142,7 +136,6 @@ echo "------------------------------------------------"
 echo "Done!"
 echo "Files are in: $SOURCE_DIR"
 echo "------------------------------------------------"
-# Using zenity info so it doesn't auto-close the terminal immediately if user is watching
 zenity --info --text="Process Complete!\nDecrypted files moved to:\n$SOURCE_DIR"
 
 exit 0
